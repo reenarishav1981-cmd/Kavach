@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kavach — Parametric Crop Insurance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#14100A;
+  --surface:#1D170F;
+  --surface-2:#241D13;
+  --border:#382C1B;
+  --border-soft:#2A2115;
+  --text:#F2EAD8;
+  --text-dim:#A89676;
+  --text-faint:#6E624C;
+  --gold:#C89B3C;
+  --gold-dim:#8A6E2E;
+  --verd:#5F8B6E;
+  --verd-dim:#3E5C48;
+  --red:#B5473A;
+  --red-dim:#7A342B;
+  --slate:#8593A0;
+  --radius:3px;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+html{scroll-behavior:smooth;}
+body{
+  background:
+    radial-gradient(1200px 600px at 15% -10%, #1C160D 0%, transparent 60%),
+    var(--bg);
+  color:var(--text);
+  font-family:'Inter',sans-serif;
+  line-height:1.5;
+  min-height:100vh;
+  position:relative;
+}
+@media (prefers-reduced-motion: reduce){ *{animation-duration:.001ms !important; transition-duration:.001ms !important;} }
+
+/* film grain overlay for premium texture */
+.grain{
+  position:fixed; inset:0; pointer-events:none; z-index:999; opacity:.035; mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.display{font-family:'Fraunces',serif; font-optical-sizing:auto;}
+.mono{font-family:'IBM Plex Mono',monospace;}
+
+a,button{font:inherit; color:inherit;}
+button{cursor:pointer; background:none; border:none;}
+:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
+
+/* ---------- shell ---------- */
+.shell{max-width:1180px; margin:0 auto; padding:0 24px;}
+.topbar{
+  border-bottom:1px solid var(--border-soft);
+  position:sticky; top:0; z-index:40;
+  background:rgba(20,16,10,.92);
+  backdrop-filter:blur(8px);
+}
+.topbar-inner{display:flex; align-items:center; justify-content:space-between; height:64px;}
+.brand{display:flex; align-items:center; gap:10px;}
+.brand-mark{
+  width:30px; height:30px; border-radius:50%;
+  border:1.5px solid var(--gold);
+  display:flex; align-items:center; justify-content:center;
+  font-family:'Fraunces',serif; font-weight:700; font-size:14px; color:var(--gold);
+  position:relative;
+}
+.brand-mark::after{
+  content:''; position:absolute; inset:-5px; border-radius:50%; border:1px solid var(--gold-dim);
+  opacity:.5; animation:spin 14s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.brand-name{font-family:'Fraunces',serif; font-weight:600; font-size:19px; letter-spacing:.01em;}
+.brand-tag{font-size:11px; color:var(--text-faint); font-family:'IBM Plex Mono',monospace; margin-left:8px; display:none;}
+@media(min-width:640px){.brand-tag{display:inline;}}
+
+.net-status{
+  display:none; align-items:center; gap:6px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--text-faint);
+  border:1px solid var(--border); padding:5px 10px; border-radius:12px;
+}
+@media(min-width:760px){.net-status{display:flex;}}
+.net-dot{width:6px; height:6px; border-radius:50%; background:var(--verd); animation:pulse 1.6s infinite;}
+
+nav.tabs{display:flex; gap:4px;}
+.tab{
+  padding:9px 14px; font-size:13.5px; color:var(--text-dim);
+  border-radius:var(--radius); font-weight:500;
+  transition:color .15s, background .15s;
+}
+.tab:hover{color:var(--text);}
+.tab.active{color:var(--gold); background:var(--surface-2);}
+
+.view{display:none; padding:56px 0 100px;}
+.view.active{display:block; animation:fade .4s cubic-bezier(.16,.84,.44,1);}
+@keyframes fade{from{opacity:0; transform:translateY(10px)} to{opacity:1; transform:translateY(0)}}
+
+.eyebrow{
+  font-family:'IBM Plex Mono',monospace; font-size:11.5px; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--gold-dim); margin-bottom:14px; display:flex; align-items:center; gap:8px;
+}
+.eyebrow::before{content:''; width:14px; height:1px; background:var(--gold-dim);}
+
+/* ---------- flow stepper (persistent across claim flow) ---------- */
+.flow-stepper{display:none; gap:0; margin:0 0 40px; border:1px solid var(--border-soft); background:var(--surface);}
+.flow-stepper.show{display:flex;}
+.fs-item{flex:1; display:flex; align-items:center; gap:10px; padding:14px 16px; position:relative;}
+.fs-item + .fs-item{border-left:1px solid var(--border-soft);}
+.fs-num{
+  width:24px; height:24px; border-radius:50%; border:1px solid var(--border); flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--text-faint);
+  transition:all .3s;
+}
+.fs-item.active .fs-num{border-color:var(--gold); color:var(--gold); background:rgba(200,155,60,.12);}
+.fs-item.done .fs-num{border-color:var(--verd); color:var(--verd); background:rgba(95,139,110,.12);}
+.fs-label{font-size:12.5px; color:var(--text-faint); font-weight:500;}
+.fs-item.active .fs-label{color:var(--text);}
+.fs-item.done .fs-label{color:var(--text-dim);}
+@media(max-width:760px){.fs-label{display:none;}}
+
+/* ---------- overview ---------- */
+.hero{display:grid; grid-template-columns:1.15fr .85fr; gap:64px; align-items:start; padding-bottom:64px; border-bottom:1px solid var(--border-soft);}
+@media(max-width:860px){.hero{grid-template-columns:1fr; gap:40px;}}
+.hero h1{font-family:'Fraunces',serif; font-weight:600; font-size:46px; line-height:1.12; letter-spacing:-.01em;}
+@media(max-width:640px){.hero h1{font-size:32px;}}
+.hero h1 .accent{color:var(--gold); font-style:italic;}
+.hero-sub{color:var(--text-dim); font-size:16px; margin-top:18px; max-width:46ch;}
+.hero-cta{display:flex; gap:12px; margin-top:30px; flex-wrap:wrap;}
+.btn{
+  padding:12px 20px; border-radius:var(--radius); font-size:14px; font-weight:600;
+  border:1px solid transparent; transition:transform .12s, background .15s, border-color .15s, box-shadow .2s;
+}
+.btn:active{transform:scale(.98);}
+.btn-primary{background:var(--gold); color:#1A1508;}
+.btn-primary:hover{background:#DBAE49; box-shadow:0 4px 20px rgba(200,155,60,.25);}
+.btn-ghost{border-color:var(--border); color:var(--text);}
+.btn-ghost:hover{border-color:var(--text-dim);}
+
+.stamp-preview{
+  width:150px; height:150px; border-radius:50%; border:2px solid var(--verd);
+  display:flex; align-items:center; justify-content:center; text-align:center;
+  transform:rotate(-9deg); margin:0 auto; position:relative;
+  color:var(--verd); font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.08em;
+  padding:14px; text-transform:uppercase; line-height:1.5;
+  box-shadow:inset 0 0 0 4px rgba(95,139,110,.15);
+}
+.stamp-preview::before{
+  content:''; position:absolute; inset:-14px; border-radius:50%; border:1px dashed var(--verd-dim);
+  animation:spin 22s linear infinite;
+}
+.hero-panel{
+  border:1px solid var(--border); border-radius:6px; background:var(--surface); padding:32px 20px;
+  display:flex; flex-direction:column; align-items:center; gap:16px; position:relative; overflow:hidden;
+}
+.hero-panel .label{font-size:12px; color:var(--text-faint); font-family:'IBM Plex Mono',monospace; text-align:center;}
+.hero-panel-tag{
+  position:absolute; top:14px; right:14px; display:flex; align-items:center; gap:6px;
+  font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:var(--text-faint); letter-spacing:.05em;
+}
+
+.flow-strip{display:flex; align-items:center; gap:0; margin-top:64px; flex-wrap:wrap;}
+.flow-step{
+  flex:1; min-width:140px; padding:18px 16px; border:1px solid var(--border-soft);
+  background:var(--surface); position:relative; opacity:0; animation:stepIn .5s ease forwards;
+  transition:background .2s, border-color .2s;
+}
+.flow-step:hover{background:var(--surface-2); border-color:var(--border);}
+.flow-step:nth-child(1){animation-delay:.05s;} .flow-step:nth-child(2){animation-delay:.15s;}
+.flow-step:nth-child(3){animation-delay:.25s;} .flow-step:nth-child(4){animation-delay:.35s;}
+.flow-step:nth-child(5){animation-delay:.45s;}
+@keyframes stepIn{from{opacity:0; transform:translateY(8px)} to{opacity:1; transform:translateY(0)}}
+.flow-step + .flow-step{border-left:none;}
+.flow-step .n{font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--gold-dim); margin-bottom:6px;}
+.flow-step h4{font-family:'Fraunces',serif; font-weight:600; font-size:16px; margin-bottom:4px;}
+.flow-step p{font-size:12.5px; color:var(--text-faint);}
+@media(max-width:760px){.flow-step{border-left:1px solid var(--border-soft) !important; border-top:none;} .flow-strip{flex-direction:column;} .flow-step + .flow-step{border-top:none;}}
+
+.stat-row{display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--border-soft); margin-top:48px; border:1px solid var(--border-soft);}
+@media(max-width:640px){.stat-row{grid-template-columns:1fr;}}
+.stat{background:var(--bg); padding:22px 20px;}
+.stat .v{font-family:'Fraunces',serif; font-size:30px; color:var(--gold); font-weight:600;}
+.stat .k{font-size:12.5px; color:var(--text-faint); margin-top:4px;}
+
+/* comparison table */
+.compare-wrap{margin-top:56px;}
+.compare-wrap h3{font-family:'Fraunces',serif; font-size:20px; margin-bottom:18px;}
+.compare-table{width:100%; border-collapse:collapse; border:1px solid var(--border-soft);}
+.compare-table th{
+  text-align:left; padding:12px 16px; font-size:11px; text-transform:uppercase; letter-spacing:.06em;
+  color:var(--text-faint); background:var(--surface-2); font-weight:500; border-bottom:1px solid var(--border-soft);
+}
+.compare-table td{padding:13px 16px; font-size:13px; border-bottom:1px solid var(--border-soft); color:var(--text-dim);}
+.compare-table tr:last-child td{border-bottom:none;}
+.compare-table td.k-manual{color:var(--text-faint);}
+.compare-table td.k-kavach{color:var(--verd); font-weight:600;}
+
+.quote-block{
+  margin-top:56px; border-left:2px solid var(--gold-dim); padding:6px 0 6px 24px;
+}
+.quote-block p{font-family:'Fraunces',serif; font-style:italic; font-size:19px; color:var(--text); line-height:1.5;}
+.quote-block .who{margin-top:10px; font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--text-faint);}
+
+.disclaimer{
+  margin-top:40px; padding:12px 16px; border:1px dashed var(--border); border-radius:var(--radius);
+  font-size:12px; color:var(--text-faint); font-family:'IBM Plex Mono',monospace;
+}
+
+/* ---------- section heads ---------- */
+.section-head{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:28px; flex-wrap:wrap; gap:10px;}
+.section-head h2{font-family:'Fraunces',serif; font-size:28px; font-weight:600;}
+.section-head p{color:var(--text-faint); font-size:13px;}
+
+/* ---------- claim form ---------- */
+.card{border:1px solid var(--border); border-radius:6px; background:var(--surface); padding:28px;}
+.grid-2{display:grid; grid-template-columns:1fr 1fr; gap:20px;}
+@media(max-width:640px){.grid-2{grid-template-columns:1fr;}}
+.field label{display:block; font-size:12px; color:var(--text-dim); margin-bottom:7px; font-weight:500;}
+.field select, .field input{
+  width:100%; background:var(--surface-2); border:1px solid var(--border); color:var(--text);
+  padding:11px 12px; border-radius:var(--radius); font-size:14px; font-family:'Inter',sans-serif;
+  transition:border-color .15s;
+}
+.field select:focus, .field input:focus{border-color:var(--gold);}
+.field{margin-bottom:20px;}
+
+.scenario-toggle{display:flex; gap:10px; margin-bottom:28px;}
+.scenario-btn{
+  flex:1; border:1px solid var(--border); border-radius:var(--radius); padding:14px; text-align:left;
+  background:var(--surface-2); transition:border-color .15s, transform .15s;
+}
+.scenario-btn:hover{transform:translateY(-1px);}
+.scenario-btn.selected{border-color:var(--gold); box-shadow:0 0 0 1px var(--gold) inset;}
+.scenario-btn .t{font-weight:600; font-size:13.5px;}
+.scenario-btn .d{font-size:11.5px; color:var(--text-faint); margin-top:3px;}
+
+.evidence-row{display:flex; gap:10px; margin-top:6px; flex-wrap:wrap;}
+.evidence-chip{
+  border:1px solid var(--border); border-radius:var(--radius); padding:8px 12px; font-size:12px;
+  color:var(--text-dim); font-family:'IBM Plex Mono',monospace; background:var(--surface-2);
+}
+
+/* ---------- processing ---------- */
+.overall-bar{height:3px; background:var(--border-soft); border-radius:2px; overflow:hidden; margin-bottom:28px;}
+.overall-bar-fill{height:100%; width:0%; background:linear-gradient(90deg,var(--gold-dim),var(--gold)); transition:width .4s ease;}
+
+.process-list{display:flex; flex-direction:column; gap:0; border:1px solid var(--border); border-radius:6px; overflow:hidden;}
+.process-row{
+  display:flex; align-items:center; gap:14px; padding:18px 20px; border-bottom:1px solid var(--border-soft);
+  background:var(--surface); transition:background .3s;
+}
+.process-row.active{background:var(--surface-2);}
+.process-row:last-child{border-bottom:none;}
+.dot{width:9px; height:9px; border-radius:50%; background:var(--border); flex-shrink:0; transition:background .3s;}
+.dot.done{background:var(--verd);}
+.dot.active{background:var(--gold); animation:pulse 1s infinite;}
+@keyframes pulse{0%,100%{opacity:1} 50%{opacity:.35}}
+.process-row .rt{flex:1;}
+.process-row .rt h5{font-size:14px; font-weight:600;}
+.process-row .rt p{font-size:12px; color:var(--text-faint); margin-top:2px; font-family:'IBM Plex Mono',monospace;}
+.process-row .rr{font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--text-faint);}
+
+.score-panel{display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--border-soft); margin-top:24px; border:1px solid var(--border-soft);}
+@media(max-width:640px){.score-panel{grid-template-columns:1fr;}}
+.score-cell{background:var(--surface); padding:22px 20px; transition:background .3s;}
+.score-cell .k{font-size:11.5px; color:var(--text-faint); font-family:'IBM Plex Mono',monospace; text-transform:uppercase; letter-spacing:.06em;}
+.score-cell .v{font-family:'Fraunces',serif; font-size:26px; margin-top:6px; transition:color .3s;}
+.score-cell .v.warn{color:var(--red);}
+.score-cell .v.ok{color:var(--verd);}
+
+/* ---------- chain ---------- */
+.hash-block{
+  background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius);
+  padding:16px 18px; font-family:'IBM Plex Mono',monospace; font-size:12.5px; color:var(--slate);
+  word-break:break-all; margin-top:10px; position:relative;
+}
+.hash-block.reveal::before{
+  content:''; position:absolute; inset:0; background:var(--surface-2);
+  animation:sweep 1s ease forwards;
+}
+@keyframes sweep{from{transform:scaleX(1)} to{transform:scaleX(0)}}
+.hash-block.reveal{transform-origin:left;}
+.tag{
+  display:inline-flex; align-items:center; gap:6px; font-family:'IBM Plex Mono',monospace; font-size:11px;
+  padding:4px 9px; border-radius:12px; letter-spacing:.04em; text-transform:uppercase;
+}
+.tag-sim{background:rgba(133,147,160,.15); color:var(--slate); border:1px solid rgba(133,147,160,.3);}
+.tag-chain{background:rgba(95,139,110,.15); color:var(--verd); border:1px solid rgba(95,139,110,.3);}
+.tag-block{background:rgba(181,71,58,.15); color:var(--red); border:1px solid rgba(181,71,58,.3);}
+
+.chain-diagram{display:flex; align-items:center; gap:10px; margin:26px 0; flex-wrap:wrap; font-family:'IBM Plex Mono',monospace; font-size:12px;}
+.chain-node{border:1px solid var(--border); border-radius:var(--radius); padding:10px 14px; background:var(--surface);}
+.chain-arrow{color:var(--text-faint);}
+
+/* ---------- outcome / stamp ---------- */
+.outcome-wrap{display:flex; flex-direction:column; align-items:center; text-align:center; padding:40px 20px; position:relative; overflow:hidden;}
+.outcome-wrap.shake{animation:shake .5s;}
+@keyframes shake{10%,90%{transform:translateX(-2px)} 20%,80%{transform:translateX(3px)} 30%,50%,70%{transform:translateX(-5px)} 40%,60%{transform:translateX(5px)}}
+.stamp{
+  width:180px; height:180px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  flex-direction:column; gap:4px; border:3px solid var(--verd); color:var(--verd); position:relative;
+  transform:rotate(-8deg) scale(0); animation:stampdown .5s cubic-bezier(.2,1.4,.4,1) forwards; animation-delay:.15s;
+  box-shadow:inset 0 0 0 5px rgba(95,139,110,.15);
+}
+.stamp.blocked{border-color:var(--red); color:var(--red); box-shadow:inset 0 0 0 5px rgba(181,71,58,.15);}
+@keyframes stampdown{0%{transform:rotate(-8deg) scale(2); opacity:0;} 70%{opacity:1;} 100%{transform:rotate(-8deg) scale(1); opacity:1;}}
+.stamp .s1{font-family:'Fraunces',serif; font-weight:700; font-size:20px;}
+.stamp .s2{font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.1em;}
+.outcome-detail{margin-top:26px; max-width:440px;}
+.outcome-detail h3{font-family:'Fraunces',serif; font-size:22px; margin-bottom:8px;}
+.outcome-detail p{color:var(--text-dim); font-size:14px;}
+.payout-box{margin-top:20px; border:1px solid var(--border); border-radius:6px; padding:20px 26px; background:var(--surface);}
+.payout-box .amt{font-family:'Fraunces',serif; font-size:32px; color:var(--gold);}
+.payout-box .lbl{font-size:11.5px; color:var(--text-faint); font-family:'IBM Plex Mono',monospace; margin-top:4px;}
+
+.confetti{position:absolute; width:6px; height:6px; background:var(--gold); top:45%; left:50%; opacity:0; border-radius:1px;}
+@keyframes confetti{0%{opacity:1; transform:translate(0,0) rotate(0deg);} 100%{opacity:0; transform:translate(var(--cx),var(--cy)) rotate(var(--cr));}}
+.confetti.go{animation:confetti .9s ease-out forwards;}
+
+/* ---------- ledger ---------- */
+.ledger-controls{display:flex; gap:12px; margin-bottom:18px; flex-wrap:wrap; align-items:center;}
+.ledger-search{
+  flex:1; min-width:200px; background:var(--surface-2); border:1px solid var(--border); color:var(--text);
+  padding:10px 14px; border-radius:var(--radius); font-size:13px; font-family:'Inter',sans-serif;
+}
+.ledger-search:focus{border-color:var(--gold);}
+.filter-chip{
+  padding:8px 14px; border:1px solid var(--border); border-radius:14px; font-size:12px; color:var(--text-dim);
+  font-family:'IBM Plex Mono',monospace; transition:all .15s;
+}
+.filter-chip.active{border-color:var(--gold); color:var(--gold); background:rgba(200,155,60,.1);}
+table{width:100%; border-collapse:collapse; font-size:13px;}
+th{
+  text-align:left; padding:10px 14px; font-size:11px; text-transform:uppercase; letter-spacing:.06em;
+  color:var(--text-faint); border-bottom:1px solid var(--border); font-weight:500;
+}
+td{padding:14px; border-bottom:1px solid var(--border-soft); vertical-align:middle;}
+tr.ledger-row{transition:background .15s;}
+tr.ledger-row:hover{background:var(--surface-2);}
+td.hash{font-family:'IBM Plex Mono',monospace; color:var(--slate); font-size:12px;}
+.status-pill{font-size:11px; padding:4px 10px; border-radius:12px; font-weight:600; font-family:'IBM Plex Mono',monospace;}
+.status-approved{background:rgba(95,139,110,.15); color:var(--verd);}
+.status-blocked{background:rgba(181,71,58,.15); color:var(--red);}
+.empty-row td{text-align:center; padding:40px; color:var(--text-faint); font-family:'IBM Plex Mono',monospace; font-size:12px;}
+
+.footer-note{margin-top:60px; padding-top:24px; border-top:1px solid var(--border-soft); color:var(--text-faint); font-size:12px; font-family:'IBM Plex Mono',monospace;}
+
+/* ---------- toasts ---------- */
+#toast-container{position:fixed; bottom:22px; right:22px; z-index:9999; display:flex; flex-direction:column; gap:10px; align-items:flex-end;}
+.toast{
+  background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--gold);
+  padding:12px 16px; border-radius:4px; font-size:12.5px; color:var(--text); min-width:220px; max-width:320px;
+  box-shadow:0 8px 24px rgba(0,0,0,.4); transform:translateX(20px); opacity:0; animation:toastIn .3s forwards;
+  font-family:'IBM Plex Mono',monospace;
+}
+.toast.verd{border-left-color:var(--verd);}
+.toast.red{border-left-color:var(--red);}
+@keyframes toastIn{to{transform:translateX(0); opacity:1;}}
+.toast.out{animation:toastOut .3s forwards;}
+@keyframes toastOut{to{transform:translateX(20px); opacity:0;}}
+</style>
+</head>
+<body>
+<div class="grain"></div>
+<div id="toast-container"></div>
+
+<div class="topbar">
+  <div class="shell topbar-inner">
+    <div class="brand">
+      <div class="brand-mark">क</div>
+      <div class="brand-name">Kavach</div>
+      <div class="brand-tag">parametric crop insurance</div>
+    </div>
+    <div style="display:flex; align-items:center; gap:14px;">
+      <div class="net-status"><span class="net-dot"></span>testnet simulation active</div>
+      <nav class="tabs">
+        <button class="tab active" data-view="overview">Overview</button>
+        <button class="tab" data-view="claim">File Claim</button>
+        <button class="tab" data-view="ledger">Ledger</button>
+      </nav>
+    </div>
+  </div>
+</div>
+
+<div class="shell">
+
+  <div class="flow-stepper" id="flowStepper">
+    <div class="fs-item" data-step="1"><div class="fs-num">1</div><div class="fs-label">Input</div></div>
+    <div class="fs-item" data-step="2"><div class="fs-num">2</div><div class="fs-label">Intelligence</div></div>
+    <div class="fs-item" data-step="3"><div class="fs-num">3</div><div class="fs-label">Verify + Chain</div></div>
+    <div class="fs-item" data-step="4"><div class="fs-num">4</div><div class="fs-label">Outcome</div></div>
+  </div>
+
+  <!-- ============ OVERVIEW ============ -->
+  <section class="view active" id="view-overview">
+    <div class="hero">
+      <div>
+        <div class="eyebrow">Automate India Hackathon — Smart Contracts × AI Track</div>
+        <h1>A crop claim shouldn't take <span class="accent">forty days</span><br>to settle in <span class="accent">four minutes.</span></h1>
+        <p class="hero-sub">Kavach reads field damage the way an assessor would, checks it against independent weather data, and lets a smart contract pay — or block — the claim the moment the evidence is verified. No adjuster visit. No paper trail. No waiting for the next monsoon.</p>
+        <div class="hero-cta">
+          <button class="btn btn-primary" onclick="goTo('claim')">File a claim →</button>
+          <button class="btn btn-ghost" onclick="goTo('ledger')">View the ledger</button>
+        </div>
+      </div>
+      <div class="hero-panel">
+        <div class="hero-panel-tag"><span class="net-dot"></span>live seal</div>
+        <div class="stamp-preview">KAVACH<br>VERIFIED<br>ON CHAIN</div>
+        <div class="label">Every settled claim leaves a<br>tamper-proof seal like this one.</div>
+      </div>
+    </div>
+
+    <div class="flow-strip">
+      <div class="flow-step"><div class="n">01</div><h4>Input</h4><p>Farmer submits plot ID, crop, and field photo at time of damage.</p></div>
+      <div class="flow-step"><div class="n">02</div><h4>AI read</h4><p>Damage model scores the photo and cross-checks IMD rainfall data for that district.</p></div>
+      <div class="flow-step"><div class="n">03</div><h4>Verify</h4><p>Score and weather correlation are hashed into a signed attestation.</p></div>
+      <div class="flow-step"><div class="n">04</div><h4>Chain</h4><p>Smart contract reads the attestation and transitions claim state on-chain.</p></div>
+      <div class="flow-step"><div class="n">05</div><h4>Outcome</h4><p>Genuine claims pay out automatically. Inconsistent ones are flagged and blocked.</p></div>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat"><div class="v" id="stat1">0 days</div><div class="k">avg. wait for a manual crop-insurance payout in India today</div></div>
+      <div class="stat"><div class="v" id="stat2">0 min</div><div class="k">Kavach claim-to-decision time, demo pipeline</div></div>
+      <div class="stat"><div class="v" id="stat3">0%</div><div class="k">of decisions independently re-checkable on-chain</div></div>
+    </div>
+
+    <div class="compare-wrap">
+      <h3>Manual process vs Kavach</h3>
+      <table class="compare-table">
+        <thead><tr><th>Dimension</th><th>Manual process</th><th>Kavach</th></tr></thead>
+        <tbody>
+          <tr><td>Time to decision</td><td class="k-manual">~21 days, assessor-dependent</td><td class="k-kavach">Under 4 minutes</td></tr>
+          <tr><td>Fraud check</td><td class="k-manual">Relies on one visit, one person's judgement</td><td class="k-kavach">Cross-checked against independent weather data</td></tr>
+          <tr><td>Traceability</td><td class="k-manual">Paper file, hard to audit later</td><td class="k-kavach">Hash-verifiable, on-chain record</td></tr>
+          <tr><td>Consistency</td><td class="k-manual">Varies by assessor and district</td><td class="k-kavach">Same rules applied to every claim</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="quote-block">
+      <p>"I used to wait a full season to know if my claim would even be looked at. This showed me a decision before I finished my chai."</p>
+      <div class="who">— illustrative farmer scenario, used for demo storytelling</div>
+    </div>
+
+    <div class="disclaimer">This is an 8-hour hackathon prototype. AI scoring and weather data are seeded demo data. Blockchain calls target a local EVM simulation — clearly labelled wherever shown — not a live mainnet transaction.</div>
+  </section>
+
+  <!-- ============ FILE CLAIM ============ -->
+  <section class="view" id="view-claim">
+    <div class="section-head">
+      <div>
+        <div class="eyebrow">Step 1 of 4</div>
+        <h2>File a claim</h2>
+      </div>
+      <p>Pick a scenario to see how Kavach handles each case.</p>
+    </div>
+
+    <div class="scenario-toggle">
+      <button class="scenario-btn selected" id="scn-valid" onclick="setScenario('valid')">
+        <div class="t">Genuine damage claim</div>
+        <div class="d">Rainfall deficit matches visible crop stress</div>
+      </button>
+      <button class="scenario-btn" id="scn-fraud" onclick="setScenario('fraud')">
+        <div class="t">Inconsistent claim</div>
+        <div class="d">Photo shows damage, but district had normal rainfall</div>
+      </button>
+    </div>
+
+    <div class="card">
+      <div class="grid-2">
+        <div class="field"><label>Farmer</label><select><option>Ramesh Patil — Ahmednagar, MH</option></select></div>
+        <div class="field"><label>Plot ID</label><input value="MH-AGN-0472" readonly></div>
+        <div class="field"><label>Crop</label><select><option>Cotton</option></select></div>
+        <div class="field"><label>Sowing season</label><input value="Kharif 2026" readonly></div>
+      </div>
+      <div class="field">
+        <label>Field evidence</label>
+        <div class="evidence-row">
+          <span class="evidence-chip">📷 field_damage_01.jpg</span>
+          <span class="evidence-chip">📍 GPS-tagged, 22 Aug 2026</span>
+          <span class="evidence-chip">🌦 IMD district feed (demo)</span>
+        </div>
+      </div>
+      <button class="btn btn-primary" style="margin-top:8px;" onclick="startProcessing()">Submit claim →</button>
+    </div>
+  </section>
+
+  <!-- ============ AI + CHAIN PROCESSING ============ -->
+  <section class="view" id="view-process">
+    <div class="section-head">
+      <div>
+        <div class="eyebrow">Step 2–3 of 4</div>
+        <h2>Reading the claim</h2>
+      </div>
+      <p id="scenario-label" class="tag tag-sim">seeded demo data</p>
+    </div>
+
+    <div class="overall-bar"><div class="overall-bar-fill" id="overallBar"></div></div>
+
+    <div class="process-list">
+      <div class="process-row" id="pr-1"><div class="dot" id="dot-1"></div><div class="rt"><h5>Damage classification</h5><p>Vision model scoring field_damage_01.jpg</p></div><div class="rr" id="rr-1">—</div></div>
+      <div class="process-row" id="pr-2"><div class="dot" id="dot-2"></div><div class="rt"><h5>Weather cross-check</h5><p>Correlating with IMD rainfall feed, Ahmednagar district</p></div><div class="rr" id="rr-2">—</div></div>
+      <div class="process-row" id="pr-3"><div class="dot" id="dot-3"></div><div class="rt"><h5>Attestation signed</h5><p>Score + correlation hashed and signed off-chain</p></div><div class="rr" id="rr-3">—</div></div>
+      <div class="process-row" id="pr-4"><div class="dot" id="dot-4"></div><div class="rt"><h5>Smart contract call</h5><p id="chain-desc">Kavach.sol · submitAttestation()</p></div><div class="rr" id="rr-4">—</div></div>
+    </div>
+
+    <div class="score-panel">
+      <div class="score-cell"><div class="k">Damage score</div><div class="v" id="score-damage">—</div></div>
+      <div class="score-cell"><div class="k">Rainfall deficit, district</div><div class="v" id="score-rain">—</div></div>
+      <div class="score-cell"><div class="k">Consistency check</div><div class="v" id="score-consistency">—</div></div>
+      <div class="score-cell"><div class="k">Confidence</div><div class="v" id="score-confidence">—</div></div>
+    </div>
+
+    <div class="hash-block" id="hash-block">awaiting attestation hash…</div>
+
+    <div class="chain-diagram">
+      <div class="chain-node">Off-chain: photo, weather series</div>
+      <div class="chain-arrow">→ hash only →</div>
+      <div class="chain-node">On-chain: attestation hash, score, decision</div>
+      <div class="chain-arrow">→</div>
+      <div class="chain-node">Kavach.sol state</div>
+    </div>
+  </section>
+
+  <!-- ============ OUTCOME ============ -->
+  <section class="view" id="view-outcome">
+    <div class="section-head">
+      <div><div class="eyebrow">Step 4 of 4</div><h2>Outcome</h2></div>
+    </div>
+    <div class="card outcome-wrap" id="outcome-card">
+      <!-- filled by JS -->
+    </div>
+    <div style="display:flex; gap:12px; justify-content:center; margin-top:28px;">
+      <button class="btn btn-ghost" onclick="goTo('claim')">File another claim</button>
+      <button class="btn btn-primary" onclick="goTo('ledger')">View ledger →</button>
+    </div>
+  </section>
+
+  <!-- ============ LEDGER ============ -->
+  <section class="view" id="view-ledger">
+    <div class="section-head">
+      <div><div class="eyebrow">Audit trail</div><h2>Ledger</h2></div>
+      <p>Every claim decision, verifiable by hash.</p>
+    </div>
+    <div class="ledger-controls">
+      <input class="ledger-search" id="ledgerSearch" placeholder="Search by farmer, crop, or claim ID…" oninput="filterLedger()">
+      <button class="filter-chip active" data-f="all" onclick="setLedgerFilter('all')">All</button>
+      <button class="filter-chip" data-f="approved" onclick="setLedgerFilter('approved')">Approved</button>
+      <button class="filter-chip" data-f="blocked" onclick="setLedgerFilter('blocked')">Blocked</button>
+    </div>
+    <div class="card" style="padding:0; overflow-x:auto;">
+      <table>
+        <thead><tr><th>Claim ID</th><th>Farmer</th><th>Crop</th><th>Decision</th><th>Attestation hash</th><th>Timestamp</th></tr></thead>
+        <tbody id="ledger-body">
+          <tr class="ledger-row" data-status="approved"><td>KV-1042</td><td>Suresh Naik</td><td>Soybean</td><td><span class="status-pill status-approved">Approved</span></td><td class="hash">0x8f2a...c193</td><td>19 Aug, 06:14</td></tr>
+          <tr class="ledger-row" data-status="blocked"><td>KV-1041</td><td>Anita Kadam</td><td>Cotton</td><td><span class="status-pill status-blocked">Blocked</span></td><td class="hash">0x1b77...e40d</td><td>18 Aug, 15:02</td></tr>
+          <tr class="ledger-row" data-status="approved"><td>KV-1040</td><td>Vinod Shinde</td><td>Wheat</td><td><span class="status-pill status-approved">Approved</span></td><td class="hash">0x3e90...a821</td><td>17 Aug, 09:47</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="footer-note">Kavach — built for Automate India Hackathon, Track: AI-Powered Smart Contracts. All figures on this page are seeded demo data unless labelled otherwise.</div>
+  </section>
+
+</div>
+
+<script>
+let scenario = 'valid';
+let ledgerCount = 1043;
+let ledgerFilter = 'all';
+
+function toast(msg, type){
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = 'toast' + (type ? ' '+type : '');
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(()=>{ t.classList.add('out'); setTimeout(()=>t.remove(), 320); }, 2400);
+}
+
+function setStepper(view){
+  const stepper = document.getElementById('flowStepper');
+  const map = {claim:1, process:2, outcome:4};
+  if(!map[view]){ stepper.classList.remove('show'); return; }
+  stepper.classList.add('show');
+  const active = view === 'process' ? 3 : map[view];
+  document.querySelectorAll('.fs-item').forEach(el=>{
+    const n = parseInt(el.dataset.step);
+    el.classList.remove('active','done');
+    if(n < active) el.classList.add('done');
+    else if(n === active) el.classList.add('active');
+  });
+}
+
+function goTo(id){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+id).classList.add('active');
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  const tab = document.querySelector('.tab[data-view="'+id+'"]');
+  if(tab) tab.classList.add('active');
+  setStepper(id);
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click', ()=>goTo(t.dataset.view));
+});
+
+function setScenario(s){
+  scenario = s;
+  document.getElementById('scn-valid').classList.toggle('selected', s==='valid');
+  document.getElementById('scn-fraud').classList.toggle('selected', s==='fraud');
+}
+
+function resetProcessRow(i){
+  document.getElementById('dot-'+i).className = 'dot';
+  document.getElementById('rr-'+i).textContent = '—';
+  document.getElementById('pr-'+i).classList.remove('active');
+}
+
+function startProcessing(){
+  toast('Claim KV-'+ledgerCount+' submitted for review');
+  goTo('process');
+  for(let i=1;i<=4;i++) resetProcessRow(i);
+  document.getElementById('overallBar').style.width = '0%';
+  document.getElementById('score-damage').textContent='—';
+  document.getElementById('score-rain').textContent='—';
+  document.getElementById('score-consistency').textContent='—';
+  document.getElementById('score-confidence').textContent='—';
+  document.getElementById('hash-block').textContent='awaiting attestation hash…';
+  document.getElementById('hash-block').classList.remove('reveal');
+
+  const isFraud = scenario === 'fraud';
+  const steps = [
+    {i:1, delay:600,  result: isFraud ? '0.81 stress index' : '0.86 stress index', msg:'Damage classification complete'},
+    {i:2, delay:1300, result: isFraud ? '4% (normal)' : '61% deficit', msg:'Weather cross-check complete'},
+    {i:3, delay:900,  result: 'signed ✓', msg:'Attestation signed off-chain'},
+    {i:4, delay:1400, result: isFraud ? 'flagged, reverted' : 'state → SETTLED', msg: isFraud ? 'Contract call reverted' : 'Smart contract call confirmed'},
+  ];
+
+  let cumulative = 0;
+  steps.forEach(s=>{
+    cumulative += s.delay;
+    setTimeout(()=>{
+      document.getElementById('dot-'+s.i).className = 'dot active';
+      document.getElementById('pr-'+s.i).classList.add('active');
+      document.querySelectorAll('.dot').forEach((d,idx)=>{ if(idx < s.i-1) d.className='dot done'; });
+      document.getElementById('rr-'+s.i).textContent = s.result;
+      document.getElementById('overallBar').style.width = (s.i/4*100) + '%';
+    }, cumulative - s.delay + 200);
+    setTimeout(()=>{
+      document.getElementById('dot-'+s.i).className = 'dot done';
+      document.getElementById('pr-'+s.i).classList.remove('active');
+      toast(s.msg, s.i===4 && isFraud ? 'red' : 'verd');
+    }, cumulative);
+  });
+
+  setTimeout(()=>{
+    document.getElementById('score-damage').textContent = isFraud ? '0.81' : '0.86';
+    document.getElementById('score-rain').textContent = isFraud ? '4%' : '61%';
+    const cons = document.getElementById('score-consistency');
+    cons.textContent = isFraud ? 'Mismatch' : 'Aligned';
+    cons.className = 'v ' + (isFraud ? 'warn' : 'ok');
+    document.getElementById('score-confidence').textContent = isFraud ? '92%' : '95%';
+    const hb = document.getElementById('hash-block');
+    hb.textContent =
+      (isFraud ? '0x1b77e4a9c2f0…3de40d' : '0x8f2a5c71de44…19c193') +
+      '  — attestation hash, local EVM simulation (demo testnet, not mainnet)';
+    hb.classList.add('reveal');
+  }, 1400);
+
+  setTimeout(()=>{ renderOutcome(isFraud); goTo('outcome'); }, cumulative + 500);
+}
+
+function spawnConfetti(container){
+  const colors = ['C89B3C','5F8B6E','F2EAD8'];
+  for(let i=0;i<16;i++){
+    const el = document.createElement('span');
+    el.className = 'confetti';
+    const angle = Math.random()*Math.PI*2;
+    const dist = 60 + Math.random()*90;
+    el.style.setProperty('--cx', Math.cos(angle)*dist+'px');
+    el.style.setProperty('--cy', Math.sin(angle)*dist+'px');
+    el.style.setProperty('--cr', (Math.random()*360)+'deg');
+    el.style.background = '#'+colors[i%colors.length];
+    container.appendChild(el);
+    setTimeout(()=>el.classList.add('go'), 10);
+    setTimeout(()=>el.remove(), 1000);
+  }
+}
+
+function renderOutcome(isFraud){
+  const card = document.getElementById('outcome-card');
+  card.classList.remove('shake');
+  if(!isFraud){
+    card.innerHTML = `
+      <div class="stamp"><div class="s1">VERIFIED</div><div class="s2">SETTLED ON CHAIN</div></div>
+      <div class="outcome-detail">
+        <h3>Claim KV-${ledgerCount} approved</h3>
+        <p>Damage score and rainfall deficit corroborate each other. Kavach.sol moved the claim to SETTLED and released payout automatically — no manual review needed.</p>
+      </div>
+      <div class="payout-box"><div class="amt">₹18,400</div><div class="lbl">payout · simulated disbursement, demo testnet</div></div>
+    `;
+    setTimeout(()=>spawnConfetti(card), 250);
+  } else {
+    card.innerHTML = `
+      <div class="stamp blocked"><div class="s1">FLAGGED</div><div class="s2">ACTION BLOCKED</div></div>
+      <div class="outcome-detail">
+        <h3>Claim KV-${ledgerCount} blocked</h3>
+        <p>Field photo shows stress, but the district's IMD rainfall record shows no deficit for this window. Kavach.sol reverted the payout call and routed this claim to manual review — the inconsistency is what a paper-based process would have missed for weeks.</p>
+      </div>
+    `;
+    setTimeout(()=>card.classList.add('shake'), 300);
+  }
+  addLedgerRow(isFraud);
+  ledgerCount++;
+}
+
+function addLedgerRow(isFraud){
+  const tbody = document.getElementById('ledger-body');
+  const row = document.createElement('tr');
+  row.className = 'ledger-row';
+  row.dataset.status = isFraud ? 'blocked' : 'approved';
+  const hash = isFraud ? '0x1b77...e40d' : '0x8f2a...c193';
+  row.innerHTML = `
+    <td>KV-${ledgerCount}</td>
+    <td>Ramesh Patil</td>
+    <td>Cotton</td>
+    <td><span class="status-pill ${isFraud?'status-blocked':'status-approved'}">${isFraud?'Blocked':'Approved'}</span></td>
+    <td class="hash">${hash}</td>
+    <td>just now</td>`;
+  tbody.prepend(row);
+}
+
+function setLedgerFilter(f){
+  ledgerFilter = f;
+  document.querySelectorAll('.filter-chip').forEach(c=>c.classList.toggle('active', c.dataset.f===f));
+  filterLedger();
+}
+
+function filterLedger(){
+  const q = document.getElementById('ledgerSearch').value.trim().toLowerCase();
+  const rows = document.querySelectorAll('#ledger-body tr.ledger-row');
+  let visible = 0;
+  rows.forEach(r=>{
+    const matchesText = !q || r.textContent.toLowerCase().includes(q);
+    const matchesFilter = ledgerFilter === 'all' || r.dataset.status === ledgerFilter;
+    const show = matchesText && matchesFilter;
+    r.style.display = show ? '' : 'none';
+    if(show) visible++;
+  });
+}
+
+// animated stat counters on load
+function countUp(id, end, suffix, duration){
+  const el = document.getElementById(id);
+  const start = 0;
+  const t0 = performance.now();
+  function tick(now){
+    const p = Math.min(1, (now-t0)/duration);
+    const val = Math.floor(start + (end-start) * (1 - Math.pow(1-p, 3)));
+    el.textContent = val + suffix;
+    if(p < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+window.addEventListener('load', ()=>{
+  countUp('stat1', 21, ' days', 1100);
+  countUp('stat2', 4, ' min', 900);
+  countUp('stat3', 100, '%', 1300);
+});
+</script>
+</body>
+</html>
